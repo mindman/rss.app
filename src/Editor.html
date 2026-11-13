@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+:root{
+  --bg:#f6f7f9;--panel:#ffffff;--fg:#14171f;--muted:#646b78;--line:#e3e6eb;--soft:#f0f2f5;
+  --brand:#2563eb;--brand-ink:#ffffff;--ok:#0f8a4a;--err:#c0262d;--r:10px;
+  font-family:system-ui,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-size:14px}
+button,input,select{font:inherit;color:inherit}
+a{color:var(--brand)}
+.top{height:56px;display:flex;align-items:center;gap:12px;padding:0 20px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;letter-spacing:-.01em}
+.logo svg{width:26px;height:26px}
+.top .badge{margin-left:auto;font-size:12px;color:var(--muted);background:var(--soft);padding:5px 10px;border-radius:999px}
+.top .badge b{color:var(--fg)}
+.app{display:grid;grid-template-columns:380px minmax(0,1fr);min-height:calc(100% - 56px)}
+.side{background:var(--panel);border-right:1px solid var(--line);padding:18px 18px 40px;overflow:auto;height:calc(100vh - 56px);position:sticky;top:56px}
+.main{padding:22px 26px 60px;min-width:0}
+.sec{padding:16px 0;border-bottom:1px solid var(--line)}
+.sec:first-child{padding-top:0}
+.sec:last-child{border-bottom:0}
+.sec h2{margin:0 0 12px;font-size:12px;letter-spacing:.06em;color:var(--muted);display:flex;align-items:center;gap:8px;font-weight:700}
+.sec h2 .n{width:20px;height:20px;border-radius:50%;background:var(--fg);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;letter-spacing:0}
+.url-row{display:flex;gap:8px}
+.input,.select{width:100%;height:38px;padding:0 11px;border:1px solid var(--line);border-radius:8px;background:#fff;outline:none;transition:border-color .15s,box-shadow .15s}
+.input:focus,.select:focus{border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 18%,transparent)}
+.btn{height:38px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;font-weight:600;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--soft)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.btn.primary:hover{background:color-mix(in srgb,var(--brand) 88%,#000)}
+.btn:disabled{opacity:.55;cursor:default}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--muted)}
+.chip:hover{border-color:var(--brand);color:var(--brand)}
+.status{margin-top:10px;font-size:12.5px;color:var(--muted);min-height:18px;line-height:1.5}
+.status.ok{color:var(--ok)}.status.err{color:var(--err)}
+.themes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.theme{border:1.5px solid var(--line);border-radius:10px;background:#fff;padding:8px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);transition:border-color .15s,color .15s,background .15s}
+.theme svg{width:100%;max-width:62px;height:40px;color:#b7bdc8}
+.theme span{white-space:nowrap;font-size:11px;letter-spacing:-.02em}
+.theme:hover{border-color:#c5cad3}
+.theme[aria-pressed="true"]{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 6%,#fff)}
+.theme[aria-pressed="true"] svg{color:var(--brand)}
+.field{display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:10px;margin:10px 0}
+.field>label{color:var(--muted);font-size:13px}
+.range{display:flex;align-items:center;gap:10px}
+.range input{flex:1;accent-color:var(--brand)}
+.range output{min-width:34px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.toggles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tg{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer;font-size:13px;user-select:none}
+.tg input{appearance:none;width:32px;height:18px;border-radius:999px;background:#cfd4dc;position:relative;cursor:pointer;transition:background .15s;flex:none;margin:0}
+.tg input::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tg input:checked{background:var(--brand)}
+.tg input:checked::after{transform:translateX(14px)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;padding:2px;background:var(--soft);gap:2px}
+.seg button{border:0;background:transparent;padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:#fff;color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600}
+.swatches{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sw{width:24px;height:24px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);cursor:pointer;padding:0}
+.sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--fg)}
+.swatches input[type=color]{width:28px;height:28px;border:1px solid var(--line);border-radius:50%;padding:0;background:none;cursor:pointer;overflow:hidden}
+.swatches input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+.swatches input[type=color]::-webkit-color-swatch{border:0;border-radius:50%}
+.hint{font-size:12px;color:var(--muted);margin:6px 0 0;line-height:1.6}
+
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.toolbar h1{font-size:17px;margin:0 auto 0 0}
+.stage{border:1px solid var(--line);border-radius:14px;padding:28px;min-height:280px;display:flex;justify-content:center;align-items:flex-start;transition:background .2s;overflow:auto}
+.stage.light{background:#fff}
+.stage.dark{background:#0b0c0f;border-color:#0b0c0f}
+.stage.grid{background-color:#fff;background-image:linear-gradient(45deg,#eef0f3 25%,transparent 25%),linear-gradient(-45deg,#eef0f3 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef0f3 75%),linear-gradient(-45deg,transparent 75%,#eef0f3 75%);background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0}
+.frame{width:100%;transition:max-width .25s}
+.empty{color:var(--muted);text-align:center;padding:60px 10px;font-size:14px;line-height:1.8}
+.spinner{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.embed{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+.embed-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.embed-head h2{font-size:15px;margin:0 auto 0 0}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:12px;overflow-x:auto}
+.tabs button{border:0;background:none;padding:8px 12px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:600;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--brand);border-bottom-color:var(--brand)}
+.code{position:relative}
+.code pre{margin:0;background:#0f1218;color:#d6deeb;border-radius:10px;padding:14px 16px;padding-right:90px;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;max-height:260px;overflow:auto}
+.code .copy{position:absolute;top:8px;right:8px;height:30px;font-size:12px;background:#1f2530;border-color:#2c3340;color:#fff}
+.code .copy:hover{background:#2a3140}
+.note{font-size:12.5px;color:var(--muted);margin:10px 0 0;line-height:1.7}
+.saved{margin-top:12px;padding:12px 14px;border-radius:10px;background:color-mix(in srgb,var(--ok) 8%,#fff);border:1px solid color-mix(in srgb,var(--ok) 30%,#fff);font-size:13px;line-height:1.7}
+.saved code{background:#fff;padding:2px 6px;border-radius:5px;border:1px solid var(--line);word-break:break-all}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#14171f;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:20}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+[hidden]{display:none!important}
+
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .side{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}
+  .main{padding:18px 16px 60px}
+  .stage{padding:16px}
+  .top .badge{display:none}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#2563eb"/><circle cx="10" cy="22" r="2.6" fill="#fff"/><path d="M8 14.5a9.5 9.5 0 0 1 9.5 9.5M8 8.5A15.5 15.5 0 0 1 23.5 24" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+    RSS Widget Maker
+  </div>
+  <div class="badge" id="editBadge" hidden>編集中: <b id="editId"></b></div>
+</header>
+
+<div class="app">
+  <aside class="side">
+    <section class="sec">
+      <h2><span class="n">1</span>フィード</h2>
+      <form class="url-row" id="urlForm">
+        <input class="input" id="url" type="url" placeholder="https://example.com/feed" required autocomplete="off" aria-label="フィードまたはサイトの URL">
+        <button class="btn primary" id="loadBtn" type="submit">読み込み</button>
+      </form>
+      <div class="chips" id="samples"></div>
+      <div class="status" id="status">RSS / Atom の URL、またはサイトの URL を入力してください（フィードを自動検出します）。</div>
+    </section>
+
+    <section class="sec">
+      <h2><span class="n">2</span>デザイン</h2>
+      <div class="themes" id="themes"></div>
+    </section>
+
+    <section class="sec">
+      <h2><span class="n">3</span>表示内容</h2>
+      <div class="field"><label for="count">記事数</label><div class="range"><input type="range" id="count" min="1" max="30"><output for="count"></output></div></div>
+      <div class="field" id="colsField"><label for="columns">列数</label><div class="range"><input type="range" id="columns" min="1" max="4"><output for="columns"></output></div></div>
+      <div class="field" id="speedField"><label for="speed">スクロール速度</label><div class="range"><input type="range" id="speed" min="10" max="200" step="5"><output for="speed"></output></div></div>
+      <div class="toggles">
+        <label class="tg">ヘッダー<input type="checkbox" id="showHeader"></label>
+        <label class="tg">画像<input type="checkbox" id="showImage"></label>
+        <label class="tg">日付<input type="checkbox" id="showDate"></label>
+        <label class="tg">概要文<input type="checkbox" id="showDesc"></label>
+        <label class="tg">新しいタブ<input type="checkbox" id="newTab"></label>
+        <label class="tg">背景を透過<input type="checkbox" id="transparent"></label>
+      </div>
+      <div class="field"><label for="descLength">概要の文字数</label><div class="range"><input type="range" id="descLength" min="20" max="300" step="10"><output for="descLength"></output></div></div>
+      <div class="field"><label for="dateFormat">日付の形式</label>
+        <select class="select" id="dateFormat">
+          <option value="relative">相対（3時間前）</option>
+          <option value="date">日付（2025/01/01）</option>
+          <option value="datetime">日時（2025/01/01 09:00）</option>
+        </select></div>
+      <div class="field"><label for="title">タイトル</label><input class="input" id="title" placeholder="フィード名を使用" maxlength="120"></div>
+    </section>
+
+    <section class="sec">
+      <h2><span class="n">4</span>スタイル</h2>
+      <div class="field"><label>アクセント</label><div class="swatches" id="swatches"></div></div>
+      <div class="field"><label for="radius">角丸</label><div class="range"><input type="range" id="radius" min="0" max="24"><output for="radius"></output></div></div>
+      <div class="field"><label for="font">フォント</label>
+        <select class="select" id="font">
+          <option value="system">システム標準</option>
+          <option value="sans">ゴシック</option>
+          <option value="serif">明朝</option>
+          <option value="rounded">丸ゴシック</option>
+          <option value="mono">等幅</option>
+        </select></div>
+      <div class="field"><label>カラーモード</label>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-v="light">ライト</button>
+          <button type="button" data-v="dark">ダーク</button>
+          <button type="button" data-v="auto">自動</button>
+        </div></div>
+    </section>
+  </aside>
+
+  <main class="main">
+    <div class="toolbar">
+      <h1>プレビュー</h1>
+      <div class="seg" id="widthSeg" aria-label="プレビュー幅">
+        <button type="button" data-v="100%">PC</button>
+        <button type="button" data-v="768px">タブレット</button>
+        <button type="button" data-v="375px">スマホ</button>
+      </div>
+      <div class="seg" id="bgSeg" aria-label="プレビュー背景">
+        <button type="button" data-v="light">白</button>
+        <button type="button" data-v="dark">黒</button>
+        <button type="button" data-v="grid">透過</button>
+      </div>
+    </div>
+    <div class="stage light" id="stage">
+      <div class="frame" id="frame">
+        <div class="empty" id="empty">フィードを読み込むとここにプレビューが表示されます</div>
+        <div id="preview" hidden></div>
+      </div>
+    </div>
+
+    <section class="embed">
+      <div class="embed-head">
+        <h2>埋め込みコード</h2>
+        <button class="btn" id="saveAsNewBtn" type="button" hidden>新規として保存</button>
+        <button class="btn primary" id="saveBtn" type="button">保存して短いコードを発行</button>
+      </div>
+      <div class="tabs" role="tablist" id="tabs">
+        <button role="tab" data-tab="script" aria-selected="true">Script タグ</button>
+        <button role="tab" data-tab="iframe">iframe</button>
+        <button role="tab" data-tab="json">JSON API</button>
+        <button role="tab" data-tab="link">プレビューURL</button>
+      </div>
+      <div class="code"><pre id="code"></pre><button class="btn copy" id="copyBtn" type="button">コピー</button></div>
+      <p class="note" id="tabNote"></p>
+      <div class="saved" id="savedBox" hidden></div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>var BOOT = <?!= bootstrap ?>;</script>
+<script><?!= rendererBundle_() ?></script>
+<?!= include('EditorScript') ?>
+</body>
+</html>

@@ -1,0 +1,275 @@
+/* ウィジェットのレンダラー本体。
+ * このファイルは素の JavaScript で、Code.gs の rendererBundle_() により
+ *   (function(CSS){ ...このファイル... })(cssString)
+ * の形で包まれる。return した API が window.RSSWidget になる。
+ * フィードの内容は信用できない入力なので、すべて esc() / safeUrl() を通して出力する。
+ */
+'use strict';
+
+var THEMES = ['list', 'cards', 'magazine', 'carousel', 'ticker', 'compact', 'timeline', 'gallery'];
+var FONTS = {
+  system: 'system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif',
+  sans: '"Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif',
+  serif: '"Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", Georgia, serif',
+  rounded: '"Hiragino Maru Gothic ProN", "M PLUS Rounded 1c", "Arial Rounded MT Bold", system-ui, sans-serif',
+  mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Noto Sans Mono", monospace'
+};
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function safeUrl(u) {
+  u = String(u || '').trim();
+  return /^https?:\/\//i.test(u) ? u : '';
+}
+
+function truncate(s, n) {
+  s = String(s || '');
+  if (n <= 0) return '';
+  var chars = Array.from(s);
+  return chars.length > n ? chars.slice(0, n).join('') + '…' : s;
+}
+
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+function formatDate(iso, fmt) {
+  if (!iso) return '';
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  var ymd = d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate());
+  if (fmt === 'date') return ymd;
+  if (fmt === 'datetime') return ymd + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  var sec = (Date.now() - d.getTime()) / 1000;
+  if (sec < 60) return 'たった今';
+  if (sec < 3600) return Math.floor(sec / 60) + '分前';
+  if (sec < 86400) return Math.floor(sec / 3600) + '時間前';
+  if (sec < 86400 * 7) return Math.floor(sec / 86400) + '日前';
+  return ymd;
+}
+
+function hostOf(u) {
+  var m = String(u || '').match(/^https?:\/\/([^\/?#]+)/i);
+  return m ? m[1].replace(/^www\./, '') : '';
+}
+
+/** 設定値をもう一度クライアント側でも検証する（CSS に入るため） */
+function normalize(c) {
+  c = c || {};
+  var n = function (v, lo, hi, d) { v = parseInt(v, 10); return isNaN(v) ? d : Math.max(lo, Math.min(hi, v)); };
+  return {
+    theme: THEMES.indexOf(c.theme) >= 0 ? c.theme : 'list',
+    title: String(c.title || ''),
+    count: n(c.count, 1, 50, 6),
+    columns: n(c.columns, 1, 4, 3),
+    showHeader: c.showHeader !== false,
+    showImage: c.showImage !== false,
+    showDate: c.showDate !== false,
+    showDesc: c.showDesc !== false,
+    descLength: n(c.descLength, 0, 300, 80),
+    dateFormat: ['relative', 'date', 'datetime'].indexOf(c.dateFormat) >= 0 ? c.dateFormat : 'relative',
+    newTab: c.newTab !== false,
+    accent: /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(c.accent || '') ? c.accent : '#2563eb',
+    radius: n(c.radius, 0, 32, 10),
+    font: FONTS[c.font] ? c.font : 'system',
+    scheme: ['light', 'dark', 'auto'].indexOf(c.scheme) >= 0 ? c.scheme : 'light',
+    transparent: !!c.transparent,
+    speed: n(c.speed, 10, 200, 50)
+  };
+}
+
+// ---------- パーツ ----------
+
+function linkAttrs(item, c) {
+  var href = safeUrl(item.link);
+  return (href ? 'href="' + esc(href) + '"' : '') +
+    (c.newTab ? ' target="_blank" rel="noopener noreferrer"' : ' target="_top"');
+}
+
+function img(item, cls, c) {
+  var src = safeUrl(item.image);
+  if (!c.showImage) return '';
+  if (!src) {
+    var label = hostOf(item.link) || 'RSS';
+    return '<div class="' + cls + ' rw-ph" aria-hidden="true"><span>' + esc(label.charAt(0).toUpperCase()) + '</span></div>';
+  }
+  return '<div class="' + cls + '"><img src="' + esc(src) + '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"></div>';
+}
+
+function meta(item, c) {
+  var parts = [];
+  if (c.showDate && item.date) {
+    parts.push('<time datetime="' + esc(item.date) + '">' + esc(formatDate(item.date, c.dateFormat)) + '</time>');
+  }
+  if (item.author) parts.push('<span>' + esc(item.author) + '</span>');
+  return parts.length ? '<div class="rw-meta">' + parts.join('<i aria-hidden="true">·</i>') + '</div>' : '';
+}
+
+function desc(item, c, len) {
+  if (!c.showDesc) return '';
+  var t = truncate(item.desc, len == null ? c.descLength : len);
+  return t ? '<p class="rw-desc">' + esc(t) + '</p>' : '';
+}
+
+function title(item, tag) {
+  return '<' + tag + ' class="rw-title">' + esc(item.title) + '</' + tag + '>';
+}
+
+function header(feed, c) {
+  if (!c.showHeader) return '';
+  var name = c.title || feed.title || hostOf(feed.link) || 'RSS';
+  var href = safeUrl(feed.link);
+  var inner = '<span class="rw-dot" aria-hidden="true"></span><span class="rw-h-title">' + esc(name) + '</span>';
+  return '<header class="rw-header">' +
+    (href ? '<a ' + linkAttrs({ link: href }, c) + '>' + inner + '</a>' : '<div>' + inner + '</div>') +
+    '</header>';
+}
+
+// ---------- テーマ別テンプレート ----------
+
+var T = {};
+
+T.list = function (items, c) {
+  return '<ul class="rw-list">' + items.map(function (it) {
+    return '<li><a class="rw-row" ' + linkAttrs(it, c) + '>' + img(it, 'rw-thumb', c) +
+      '<div class="rw-body">' + title(it, 'h3') + desc(it, c) + meta(it, c) + '</div></a></li>';
+  }).join('') + '</ul>';
+};
+
+T.cards = function (items, c) {
+  return '<div class="rw-grid">' + items.map(function (it) {
+    return '<a class="rw-card" ' + linkAttrs(it, c) + '>' + img(it, 'rw-media', c) +
+      '<div class="rw-body">' + title(it, 'h3') + desc(it, c) + meta(it, c) + '</div></a>';
+  }).join('') + '</div>';
+};
+
+T.magazine = function (items, c) {
+  if (!items.length) return '';
+  var first = items[0], rest = items.slice(1);
+  return '<div class="rw-mag">' +
+    '<a class="rw-hero" ' + linkAttrs(first, c) + '>' + img(first, 'rw-media', c) +
+    '<div class="rw-body">' + title(first, 'h3') + desc(first, c, Math.max(c.descLength, 120)) + meta(first, c) + '</div></a>' +
+    (rest.length ? '<ul class="rw-side">' + rest.map(function (it) {
+      return '<li><a class="rw-row" ' + linkAttrs(it, c) + '>' + img(it, 'rw-thumb', c) +
+        '<div class="rw-body">' + title(it, 'h4') + meta(it, c) + '</div></a></li>';
+    }).join('') + '</ul>' : '') + '</div>';
+};
+
+T.carousel = function (items, c) {
+  return '<div class="rw-carousel">' +
+    '<div class="rw-track" tabindex="0">' + items.map(function (it) {
+      return '<a class="rw-card rw-slide" ' + linkAttrs(it, c) + '>' + img(it, 'rw-media', c) +
+        '<div class="rw-body">' + title(it, 'h3') + desc(it, c) + meta(it, c) + '</div></a>';
+    }).join('') + '</div>' +
+    '<button class="rw-nav rw-prev" type="button" aria-label="前へ">‹</button>' +
+    '<button class="rw-nav rw-next" type="button" aria-label="次へ">›</button></div>';
+};
+
+T.ticker = function (items, c, feed) {
+  var label = c.title || feed.title || 'NEWS';
+  var row = items.map(function (it) {
+    return '<a class="rw-tick" ' + linkAttrs(it, c) + '>' +
+      (c.showDate && it.date ? '<time>' + esc(formatDate(it.date, c.dateFormat)) + '</time>' : '') +
+      '<span>' + esc(it.title) + '</span></a>';
+  }).join('');
+  // シームレスにループさせるため同じ列を 2 回並べる
+  return '<div class="rw-tk" style="--rw-dur:' + Math.max(8, Math.round(items.length * 600 / c.speed)) + 's">' +
+    (c.showHeader ? '<div class="rw-tlabel">' + esc(truncate(label, 16)) + '</div>' : '') +
+    '<div class="rw-tviewport"><div class="rw-tmove"><div class="rw-trow">' + row + '</div>' +
+    '<div class="rw-trow" aria-hidden="true">' + row + '</div></div></div></div>';
+};
+
+T.compact = function (items, c) {
+  return '<ol class="rw-compact">' + items.map(function (it, i) {
+    return '<li><a class="rw-row" ' + linkAttrs(it, c) + '><span class="rw-num">' + (i + 1) + '</span>' +
+      '<div class="rw-body">' + title(it, 'h3') + meta(it, c) + '</div></a></li>';
+  }).join('') + '</ol>';
+};
+
+T.timeline = function (items, c) {
+  return '<ol class="rw-timeline">' + items.map(function (it) {
+    return '<li><span class="rw-node" aria-hidden="true"></span><a class="rw-row" ' + linkAttrs(it, c) + '>' +
+      '<div class="rw-body">' + meta(it, c) + title(it, 'h3') + desc(it, c) + '</div>' +
+      (safeUrl(it.image) ? img(it, 'rw-thumb', c) : '') + '</a></li>';
+  }).join('') + '</ol>';
+};
+
+T.gallery = function (items, c) {
+  var cc = Object.assign({}, c, { showImage: true });
+  return '<div class="rw-grid rw-gallery">' + items.map(function (it) {
+    return '<a class="rw-tile" ' + linkAttrs(it, c) + '>' + img(it, 'rw-media', cc) +
+      '<div class="rw-overlay">' + title(it, 'h3') + meta(it, c) + '</div></a>';
+  }).join('') + '</div>';
+};
+
+// ---------- 組み立て ----------
+
+function renderHtml(feed, config, error) {
+  var c = normalize(config);
+  var style = '--rw-accent:' + c.accent + ';--rw-radius:' + c.radius + 'px;--rw-cols:' + c.columns +
+    ';--rw-font:' + FONTS[c.font] + ';';
+  var attrs = 'class="rw rw-t-' + c.theme + (c.transparent ? ' rw-transparent' : '') + '" data-mode="' + c.scheme +
+    '" style="' + esc(style) + '"';
+  if (error || !feed) {
+    return '<div ' + attrs + '><div class="rw-error">⚠ ' + esc(error || 'フィードを読み込めませんでした') + '</div></div>';
+  }
+  var items = (feed.items || []).slice(0, c.count);
+  var body = items.length ? T[c.theme](items, c, feed) : '<div class="rw-empty">記事がありません</div>';
+  var showHeader = c.theme !== 'ticker';
+  return '<div ' + attrs + '>' + (showHeader ? header(feed, c) : '') + body + '</div>';
+}
+
+function wire(root, c) {
+  // 読み込めなかった画像はプレースホルダーに置き換える
+  Array.prototype.forEach.call(root.querySelectorAll('img'), function (im) {
+    im.addEventListener('error', function () {
+      var box = im.parentNode;
+      if (!box) return;
+      box.classList.add('rw-ph');
+      box.innerHTML = '<span>•</span>';
+    }, { once: true });
+  });
+  var car = root.querySelector('.rw-carousel');
+  if (car) {
+    var track = car.querySelector('.rw-track');
+    var step = function (dir) {
+      var slide = track.querySelector('.rw-slide');
+      var w = slide ? slide.getBoundingClientRect().width + 14 : track.clientWidth * 0.8;
+      track.scrollBy({ left: dir * w, behavior: 'smooth' });
+    };
+    var sync = function () {
+      car.querySelector('.rw-prev').disabled = track.scrollLeft <= 2;
+      car.querySelector('.rw-next').disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 2;
+    };
+    car.querySelector('.rw-prev').addEventListener('click', function () { step(-1); });
+    car.querySelector('.rw-next').addEventListener('click', function () { step(1); });
+    track.addEventListener('scroll', sync, { passive: true });
+    setTimeout(sync, 0);
+  }
+  // ティッカーは 1 列の幅から「speed px/秒」になるようにアニメーション時間を決める
+  var row = root.querySelector('.rw-trow');
+  if (row) {
+    var fit = function () {
+      var w = row.getBoundingClientRect().width;
+      if (w) root.querySelector('.rw-tk').style.setProperty('--rw-dur', Math.max(5, w / c.speed).toFixed(1) + 's');
+    };
+    fit();
+    setTimeout(fit, 500);
+  }
+}
+
+/**
+ * 要素にウィジェットを描画する。Shadow DOM を使うので埋め込み先の CSS と干渉しない。
+ * 同じ要素に再度呼ぶと描き直す（エディタのプレビューで使用）。
+ */
+function mount(el, feed, config, error) {
+  var root = el.attachShadow ? (el.shadowRoot || el.attachShadow({ mode: 'open' })) : el;
+  root.innerHTML = '<style>' + CSS + '</style>' + renderHtml(feed, config, error);
+  wire(root, normalize(config));
+  el.setAttribute('data-rw-mounted', '1');
+  return root;
+}
+
+return { mount: mount, renderHtml: renderHtml, normalize: normalize, themes: THEMES, version: '1.0.0' };

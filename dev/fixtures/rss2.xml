@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<channel><title>テックニュース &amp; ブログ</title><link>https://news.example.com/</link><description>説明</description>
+<item><title>生成AIの業務活用、国内企業の導入率が初めて5割を超える</title><link>https://news.example.com/a/1</link><pubDate>Thu, 13 Nov 2026 10:00:00 +0900</pubDate><description><![CDATA[<p>調査によると<b>過半数</b>の企業が&nbsp;導入済み。<script>alert(1)</script></p>]]></description><media:thumbnail url="http://127.0.0.1:8766/img/0.svg"/><dc:creator>編集部</dc:creator></item>
+<item><title><![CDATA[<img src=x onerror=alert(1)>XSS テスト "quote" & amp]]></title><link>javascript:alert(1)</link><pubDate>Wed, 12 Nov 2026 08:00:00 GMT</pubDate><description>本文に画像 &lt;img src="http://127.0.0.1:8766/img/1.svg"&gt; を含む</description></item>
+<item><title>Enclosure 画像の記事</title><link>/a/3</link><pubDate>2026-11-10T09:00:00+09:00</pubDate><enclosure url="http://127.0.0.1:8766/img/2.svg" type="image/svg+xml" length="0"/><description>エンクロージャー</description></item>
+<item><title>content:encoded の画像</title><guid>https://news.example.com/a/4</guid><content:encoded><![CDATA[<p><img src="/img/3.svg"> 本文</p>]]></content:encoded></item>
+</channel></rss>

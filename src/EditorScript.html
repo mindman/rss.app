@@ -1,0 +1,336 @@
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var D = BOOT.defaults;
+  var cfg = Object.assign({}, D);
+  var feed = null;
+  var saved = null;      // { id, key }
+  var dirty = false;     // 保存後に変更があるか
+  var tab = 'script';
+  var loadSeq = 0;
+
+  var SAMPLES = [
+    { name: 'Zenn', url: 'https://zenn.dev/feed' },
+    { name: 'はてブ テクノロジー', url: 'https://b.hatena.ne.jp/hotentry/it.rss' },
+    { name: 'NHKニュース', url: 'https://www.nhk.or.jp/rss/news/cat0.xml' },
+    { name: 'GIGAZINE', url: 'https://gigazine.net/news/rss_2.0/' },
+    { name: 'GitHub Blog', url: 'https://github.blog/feed/' }
+  ];
+
+  var THEME_META = {
+    list: ['リスト', '<rect x="4" y="5" width="14" height="10" rx="2"/><rect x="22" y="6" width="36" height="3" rx="1.5"/><rect x="22" y="11" width="24" height="2.5" rx="1.25" opacity=".5"/><rect x="4" y="22" width="14" height="10" rx="2"/><rect x="22" y="23" width="36" height="3" rx="1.5"/><rect x="22" y="28" width="24" height="2.5" rx="1.25" opacity=".5"/>'],
+    cards: ['カード', '<rect x="3" y="6" width="17" height="28" rx="3" opacity=".35"/><rect x="3" y="6" width="17" height="12" rx="3"/><rect x="23.5" y="6" width="17" height="28" rx="3" opacity=".35"/><rect x="23.5" y="6" width="17" height="12" rx="3"/><rect x="44" y="6" width="17" height="28" rx="3" opacity=".35"/><rect x="44" y="6" width="17" height="12" rx="3"/>'],
+    magazine: ['マガジン', '<rect x="3" y="5" width="32" height="20" rx="3"/><rect x="3" y="28" width="28" height="3" rx="1.5"/><rect x="3" y="33" width="20" height="2.5" rx="1.25" opacity=".5"/><rect x="39" y="5" width="9" height="7" rx="1.5"/><rect x="50" y="6" width="11" height="2.5" rx="1.25"/><rect x="39" y="16" width="9" height="7" rx="1.5"/><rect x="50" y="17" width="11" height="2.5" rx="1.25"/><rect x="39" y="27" width="9" height="7" rx="1.5"/><rect x="50" y="28" width="11" height="2.5" rx="1.25"/>'],
+    carousel: ['カルーセル', '<rect x="8" y="6" width="20" height="28" rx="3"/><rect x="31" y="6" width="20" height="28" rx="3" opacity=".6"/><rect x="54" y="6" width="10" height="28" rx="3" opacity=".3"/><circle cx="5" cy="20" r="3.5" opacity=".8"/><circle cx="59" cy="20" r="3.5"/>'],
+    ticker: ['ティッカー', '<rect x="2" y="13" width="60" height="14" rx="3" opacity=".3"/><rect x="2" y="13" width="15" height="14" rx="3"/><rect x="21" y="18.5" width="18" height="3" rx="1.5"/><rect x="43" y="18.5" width="16" height="3" rx="1.5" opacity=".6"/>'],
+    compact: ['コンパクト', '<rect x="4" y="5" width="6" height="6" rx="1.5"/><rect x="14" y="6.5" width="44" height="3" rx="1.5"/><rect x="4" y="17" width="6" height="6" rx="1.5"/><rect x="14" y="18.5" width="38" height="3" rx="1.5"/><rect x="4" y="29" width="6" height="6" rx="1.5" opacity=".5"/><rect x="14" y="30.5" width="42" height="3" rx="1.5"/>'],
+    timeline: ['タイムライン', '<rect x="7" y="5" width="2" height="30" rx="1" opacity=".4"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="20" r="3"/><circle cx="8" cy="32" r="3"/><rect x="16" y="6.5" width="40" height="3" rx="1.5"/><rect x="16" y="18.5" width="32" height="3" rx="1.5"/><rect x="16" y="30.5" width="36" height="3" rx="1.5"/>'],
+    gallery: ['ギャラリー', '<rect x="3" y="4" width="18" height="15" rx="2.5"/><rect x="23" y="4" width="18" height="15" rx="2.5" opacity=".7"/><rect x="43" y="4" width="18" height="15" rx="2.5" opacity=".5"/><rect x="3" y="21" width="18" height="15" rx="2.5" opacity=".6"/><rect x="23" y="21" width="18" height="15" rx="2.5"/><rect x="43" y="21" width="18" height="15" rx="2.5" opacity=".8"/>']
+  };
+  var SWATCHES = ['#2563eb', '#0891b2', '#059669', '#65a30d', '#ea580c', '#e11d48', '#db2777', '#7c3aed', '#111827'];
+  var COLS_THEMES = ['cards', 'carousel', 'gallery'];
+
+  // ---------- UI 構築 ----------
+
+  SAMPLES.forEach(function (s) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.textContent = s.name;
+    b.addEventListener('click', function () { $('url').value = s.url; loadFeed(s.url); });
+    $('samples').appendChild(b);
+  });
+
+  BOOT.themes.forEach(function (t) {
+    var m = THEME_META[t] || [t, ''];
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'theme'; b.dataset.v = t;
+    b.innerHTML = '<svg viewBox="0 0 64 40" fill="currentColor" aria-hidden="true">' + m[1] + '</svg><span></span>';
+    b.querySelector('span').textContent = m[0];
+    b.addEventListener('click', function () { set({ theme: t }); });
+    $('themes').appendChild(b);
+  });
+
+  SWATCHES.forEach(function (c) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'sw'; b.style.background = c; b.dataset.v = c;
+    b.setAttribute('aria-label', 'アクセントカラー ' + c);
+    b.addEventListener('click', function () { set({ accent: c }); });
+    $('swatches').appendChild(b);
+  });
+  var picker = document.createElement('input');
+  picker.type = 'color'; picker.id = 'accentPicker'; picker.title = '好きな色を選ぶ';
+  picker.addEventListener('input', function () { set({ accent: picker.value }); });
+  $('swatches').appendChild(picker);
+
+  ['count', 'columns', 'speed', 'descLength', 'radius'].forEach(function (k) {
+    $(k).addEventListener('input', function () { var o = {}; o[k] = Number($(k).value); set(o); });
+  });
+  ['showHeader', 'showImage', 'showDate', 'showDesc', 'newTab', 'transparent'].forEach(function (k) {
+    $(k).addEventListener('change', function () { var o = {}; o[k] = $(k).checked; set(o); });
+  });
+  ['dateFormat', 'font'].forEach(function (k) {
+    $(k).addEventListener('change', function () { var o = {}; o[k] = $(k).value; set(o); });
+  });
+  var titleTimer;
+  $('title').addEventListener('input', function () {
+    clearTimeout(titleTimer);
+    titleTimer = setTimeout(function () { set({ title: $('title').value.trim() }); }, 150);
+  });
+  segment('modeSeg', function (v) { set({ scheme: v }); });
+  segment('widthSeg', function (v) { $('frame').style.maxWidth = v; }, '100%');
+  segment('bgSeg', function (v) { $('stage').className = 'stage ' + v; }, 'light');
+
+  function segment(id, onPick, initial) {
+    var el = $(id);
+    el.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      press(el, b.dataset.v); onPick(b.dataset.v);
+    });
+    if (initial) press(el, initial);
+  }
+  function press(container, v) {
+    Array.prototype.forEach.call(container.querySelectorAll('[data-v]'), function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.v === v));
+    });
+  }
+
+  $('urlForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    loadFeed($('url').value.trim());
+  });
+
+  $('tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tab]'); if (!b) return;
+    tab = b.dataset.tab;
+    Array.prototype.forEach.call($('tabs').children, function (x) { x.setAttribute('aria-selected', String(x === b)); });
+    renderCode();
+  });
+  $('copyBtn').addEventListener('click', function () { copy($('code').textContent); });
+  $('saveBtn').addEventListener('click', function () { save(false); });
+  $('saveAsNewBtn').addEventListener('click', function () { save(true); });
+
+  // ---------- 状態 ----------
+
+  function set(patch, silent) {
+    Object.assign(cfg, patch);
+    if (!silent && saved) dirty = true;
+    syncControls();
+    renderPreview();
+    renderCode();
+  }
+
+  function syncControls() {
+    ['count', 'columns', 'speed', 'descLength', 'radius'].forEach(function (k) {
+      $(k).value = cfg[k];
+      $(k).parentNode.querySelector('output').textContent = cfg[k] + (k === 'radius' ? 'px' : k === 'speed' ? '' : '');
+    });
+    ['showHeader', 'showImage', 'showDate', 'showDesc', 'newTab', 'transparent'].forEach(function (k) { $(k).checked = !!cfg[k]; });
+    $('dateFormat').value = cfg.dateFormat;
+    $('font').value = cfg.font;
+    if (document.activeElement !== $('title')) $('title').value = cfg.title || '';
+    press($('themes'), cfg.theme);
+    press($('swatches'), cfg.accent);
+    picker.value = cfg.accent;
+    press($('modeSeg'), cfg.scheme);
+    $('colsField').hidden = COLS_THEMES.indexOf(cfg.theme) < 0;
+    $('speedField').hidden = cfg.theme !== 'ticker';
+    $('descLength').disabled = !cfg.showDesc;
+  }
+
+  // ---------- フィード読み込み ----------
+
+  function loadFeed(url) {
+    if (!/^https?:\/\//i.test(url)) { status('http:// または https:// で始まる URL を入力してください', 'err'); return; }
+    var seq = ++loadSeq;
+    if (cfg.url !== url && saved) dirty = true;
+    cfg.url = url;
+    $('url').value = url;
+    $('loadBtn').disabled = true;
+    status('読み込み中…');
+    if (!feed) showEmpty('<div class="spinner"></div>フィードを取得しています…');
+    google.script.run
+      .withSuccessHandler(function (f) {
+        if (seq !== loadSeq) return;
+        $('loadBtn').disabled = false;
+        feed = f;
+        var n = (f.items || []).length;
+        var src = f.source && f.source !== url ? '（自動検出: ' + f.source + '）' : '';
+        status('✓ ' + (f.title || 'フィード') + ' — ' + n + ' 件の記事' + src, 'ok');
+        if (f.source && f.source !== url) { cfg.url = f.source; $('url').value = f.source; }
+        renderPreview();
+        renderCode();
+      })
+      .withFailureHandler(function (err) {
+        if (seq !== loadSeq) return;
+        $('loadBtn').disabled = false;
+        feed = null;
+        status('読み込みに失敗しました: ' + (err && err.message || err), 'err');
+        showEmpty('フィードを読み込めませんでした。URL を確認してください。');
+        renderCode();
+      })
+      .apiFetchFeed(url);
+  }
+
+  function status(msg, kind) {
+    var el = $('status');
+    el.textContent = msg;
+    el.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function showEmpty(html) {
+    $('empty').innerHTML = html;
+    $('empty').hidden = false;
+    $('preview').hidden = true;
+  }
+
+  function renderPreview() {
+    if (!feed) return;
+    $('empty').hidden = true;
+    $('preview').hidden = false;
+    window.RSSWidget.mount($('preview'), feed, cfg);
+  }
+
+  // ---------- 埋め込みコード ----------
+
+  function query() {
+    if (saved) return 'id=' + encodeURIComponent(saved.id);
+    var parts = ['url=' + encodeURIComponent(cfg.url)];
+    Object.keys(D).forEach(function (k) {
+      if (k === 'url' || cfg[k] === D[k]) return;
+      var v = cfg[k];
+      if (typeof v === 'boolean') v = v ? 1 : 0;
+      parts.push(k + '=' + encodeURIComponent(v));
+    });
+    return parts.join('&');
+  }
+
+  function attr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+  function renderCode() {
+    var code = '', note = '';
+    if (!cfg.url) {
+      $('code').textContent = '// フィードを読み込むとコードが表示されます';
+      $('tabNote').textContent = '';
+      return;
+    }
+    var base = BOOT.baseUrl, q = query();
+    var title = cfg.title || (feed && feed.title) || 'RSS';
+    if (tab === 'script') {
+      code = '<script src="' + attr(base + '?mode=embed&' + q) + '" async><\/script>';
+      note = '貼り付けた位置にウィジェットが表示されます。Shadow DOM で描画するので、サイトの CSS と干渉しません。高さも自動で合います。';
+    } else if (tab === 'iframe') {
+      code = '<iframe data-rss-widget src="' + attr(base + '?mode=frame&' + q) + '"\n' +
+        '  style="width:100%;height:' + estimateHeight() + 'px;border:0;display:block" loading="lazy" title="' + attr(title) + '"></iframe>\n' +
+        '<script>/* iframe の高さを中身に合わせる（任意） */\n' +
+        'window.addEventListener("message",function(e){if(!e.data||e.data.type!=="rss-widget:height")return;\n' +
+        'document.querySelectorAll("iframe[data-rss-widget]").forEach(function(f){for(var w=e.source,i=0;w&&i<5;i++,w=w.parent){\n' +
+        'if(f.contentWindow===w){f.style.height=e.data.height+"px";break;}if(w===w.parent)break;}});});\n<\/script>';
+      note = 'script タグが使えない CMS（はてなブログ、note 等の一部、メール配信ツールなど）向け。下の <script> が使えない場合は height を手動で調整してください。';
+    } else if (tab === 'json') {
+      code = base + '?mode=json&' + q;
+      note = '正規化済みのフィードを JSON で返します（CORS 可）。&callback=関数名 を付けると JSONP になります。自前のデザインで表示したい場合に。';
+    } else {
+      code = base + '?mode=frame&' + q;
+      note = 'ウィジェット単体のページです。動作確認や共有用に。';
+    }
+    $('code').textContent = code;
+    $('tabNote').textContent = note;
+    $('saveBtn').textContent = saved ? (dirty ? '変更を保存（埋め込み先にも反映）' : '保存済み') : '保存して短いコードを発行';
+    $('saveBtn').disabled = !!saved && !dirty;
+    $('saveAsNewBtn').hidden = !saved;
+  }
+
+  function estimateHeight() {
+    var el = $('preview');
+    var h = el && el.getBoundingClientRect().height;
+    return h ? Math.ceil(h) : 480;
+  }
+
+  // ---------- 保存 ----------
+
+  function save(asNew) {
+    if (!cfg.url || !feed) { toast('先にフィードを読み込んでください'); return; }
+    var target = asNew ? null : saved;
+    $('saveBtn').disabled = true;
+    google.script.run
+      .withSuccessHandler(function (r) {
+        saved = { id: r.id, key: r.editKey };
+        dirty = false;
+        showSaved(!target);
+        try { google.script.history.replace(null, { edit: r.id, key: r.editKey }); } catch (e) {}
+        renderCode();
+        toast(target ? '保存しました。埋め込み済みのウィジェットにも反映されます' : 'ウィジェットを保存しました');
+      })
+      .withFailureHandler(function (err) {
+        $('saveBtn').disabled = false;
+        toast('保存に失敗しました: ' + (err && err.message || err));
+      })
+      .apiSaveWidget(cfg, target && target.id, target && target.key);
+  }
+
+  function showSaved(isNew) {
+    var editUrl = BOOT.baseUrl + '?edit=' + encodeURIComponent(saved.id) + '&key=' + encodeURIComponent(saved.key);
+    var box = $('savedBox');
+    box.hidden = false;
+    box.innerHTML = '';
+    var p1 = document.createElement('div');
+    p1.innerHTML = '<b>ウィジェット ID:</b> <code></code>';
+    p1.querySelector('code').textContent = saved.id;
+    var p2 = document.createElement('div');
+    p2.innerHTML = '<b>編集用 URL</b>（あとからデザインを変える時に使います。ブックマークしておいてください）<br><code></code> ';
+    p2.querySelector('code').textContent = editUrl;
+    var cb = document.createElement('button');
+    cb.className = 'btn'; cb.type = 'button'; cb.textContent = 'コピー';
+    cb.style.cssText = 'height:26px;font-size:12px;margin-left:4px';
+    cb.addEventListener('click', function () { copy(editUrl); });
+    p2.appendChild(cb);
+    box.appendChild(p1); box.appendChild(p2);
+  }
+
+  // ---------- ユーティリティ ----------
+
+  function copy(text) {
+    var done = function () { toast('コピーしました'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+    } else { fallbackCopy(text); done(); }
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+  var toastTimer;
+  function toast(msg) {
+    var t = $('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2400);
+  }
+
+  // ---------- 起動 ----------
+
+  syncControls();
+  renderCode();
+  if (BOOT.edit) {
+    status('保存済みウィジェットを読み込み中…');
+    google.script.run
+      .withSuccessHandler(function (c) {
+        cfg = Object.assign({}, D, c);
+        saved = { id: BOOT.edit.id, key: BOOT.edit.key };
+        $('editBadge').hidden = false; $('editId').textContent = saved.id;
+        showSaved(false);
+        syncControls();
+        loadFeed(cfg.url);
+      })
+      .withFailureHandler(function (err) {
+        status(String(err && err.message || err), 'err');
+      })
+      .apiLoadWidget(BOOT.edit.id, BOOT.edit.key);
+  } else {
+    loadFeed(BOOT.initialUrl || SAMPLES[0].url);
+  }
+})();
+</script>

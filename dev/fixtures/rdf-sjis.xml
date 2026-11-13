@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="Shift_JIS"?>
+<rdf:RDF xmlns="http://purl.org/rss/1.0/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:hatena="http://www.hatena.ne.jp/info/xmlns#">
+<channel rdf:about="https://b.example.jp/"><title>はてなっぽい RDF（Shift_JIS）</title><link>https://b.example.jp/</link><description>d</description></channel>
+<item rdf:about="https://b.example.jp/1"><title>日本語タイトル*　全角スペース</title><link>https://b.example.jp/1</link><description>説明文ですよ</description><dc:date>2026-11-13T09:00:00+09:00</dc:date><hatena:imageurl>http://127.0.0.1:8766/img/6.svg</hatena:imageurl></item>
+<item rdf:about="https://b.example.jp/2"><title>二件目</title><link>https://b.example.jp/2</link><dc:date>2026-11-12T09:00:00+09:00</dc:date></item>
+</rdf:RDF>

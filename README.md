@@ -18,41 +18,85 @@ RSS / Atom フィードの URL を入れるだけで、Web サイトに貼れる
   - JSON API … 正規化済みのフィードを JSON / JSONP で取得（自前デザイン用）
 - **保存と編集**: 保存すると短い ID のコードになり、あとからデザインを変えても**埋め込み先は貼り替え不要**。編集は秘密キー付きの編集用 URL から
 
-## デプロイ手順
+## デプロイ
 
-### A. ブラウザだけでやる
+[clasp](https://github.com/google/clasp)（Google 公式の GAS 用 CLI）を使ったデプロイツールを同梱しています。ファイルを手でコピーする必要はありません。
 
-1. <https://script.google.com/> で「新しいプロジェクト」を作成
-2. `src/` 内のファイルをすべて同じ名前で作成して中身を貼り付け
-   - `.gs` → 「スクリプト」、`.html` → 「HTML」（拡張子は付けずに `Editor`, `EditorScript`, `WidgetCss`, `WidgetRenderer`）
-   - `appsscript.json` は「プロジェクトの設定」→「appsscript.json マニフェスト ファイルをエディタで表示する」をオンにして上書き
-3. 「デプロイ」→「新しいデプロイ」→ 種類「ウェブアプリ」
-   - 次のユーザーとして実行: **自分**
-   - アクセスできるユーザー: **全員**
-4. 初回は UrlFetch の権限を承認する
-5. 発行された `https://script.google.com/macros/s/.../exec` を開くとエディタが表示される
+### 事前準備（最初に 1 回だけ）
 
-### B. clasp を使う
+- Node.js 20 以上
+- <https://script.google.com/home/usersettings> で **「Google Apps Script API」をオン** にする
 
 ```bash
-npm i -g @google/clasp
+npm install
 ```
+
+### 初回セットアップ
 
 ```bash
-clasp login
+npm run setup
 ```
+
+次の処理をまとめて実行します。
+
+1. clasp にログイン（ブラウザが開くので Google アカウントで許可）
+2. GAS プロジェクト「RSS Widget Maker」を作成し、`.clasp.json` に ID を保存
+3. `src/` を push して、ウェブアプリとしてデプロイ（URL が表示されます）
+4. 最後に表示される手順で、GAS エディタから `authorize` 関数を 1 回実行して権限を承認
+
+> 既にある GAS プロジェクトを使う場合は `npm run setup -- --script-id <スクリプトID>` を実行してください。手動で作ったウェブアプリのデプロイが 1 つだけあれば、それを引き継ぎます（URL は変わりません）。
+
+### 更新するとき
 
 ```bash
-clasp create --type webapp --title "RSS Widget Maker" --rootDir src
+npm run deploy
 ```
 
-```bash
-clasp push
+`src/` を push して、**既存のデプロイを新バージョンに更新** します。ウェブアプリの URL は変わらないので、埋め込み済みのコードもそのまま動きます。バージョンの説明には `v1.0.0 <コミットID> (日時)` が自動で入ります。
+
+| コマンド | 内容 |
+| --- | --- |
+| `npm run setup` | 初回セットアップ（ログイン → プロジェクト作成 → デプロイ） |
+| `npm run deploy` | push して既存デプロイを更新 |
+| `npm run deploy -- --deployment-id <ID>` | 更新するデプロイを指定（デプロイが複数ある場合） |
+| `npm run status` | スクリプト ID・デプロイ ID・URL・デプロイ一覧を表示 |
+| `npm run open` | GAS エディタを開く |
+| `npm test` | ローカルでテスト |
+
+設定は `.clasp.json`（git 管理外）に保存されます。
+
+```json
+{ "scriptId": "...", "rootDir": "src", "deploymentId": "..." }
 ```
 
-その後、A の手順 3 と同じようにウェブアプリとしてデプロイします（`.clasp.json.example` 参照）。
+### GitHub Actions で自動デプロイ
 
-> コードを更新したら「デプロイを管理」→ 既存のデプロイを編集 →「新バージョン」にすると、**同じ URL のまま**反映されます（新しいデプロイを作ると URL が変わり、埋め込み済みコードが動かなくなります）。
+`.github/workflows/deploy.yml` が入っています。
+
+- PR ごとにテストを実行
+- `main` へマージ（push）されたら、テスト後に自動でデプロイ
+- Actions 画面の「Run workflow」から手動でデプロイも可能
+
+使うには、リポジトリの **Settings → Secrets and variables → Actions** に次の 3 つを登録します（未登録の間はデプロイをスキップし、テストだけ実行します）。
+
+| シークレット | 値 |
+| --- | --- |
+| `CLASPRC_JSON` | ローカルで `npm run setup`（または `npx clasp login`）した後の `~/.clasprc.json` の中身すべて |
+| `GAS_SCRIPT_ID` | `.clasp.json` の `scriptId`（`npm run status` でも表示） |
+| `GAS_DEPLOYMENT_ID` | `.clasp.json` の `deploymentId` |
+
+> `CLASPRC_JSON` はあなたの Google アカウントで GAS を操作できる認証情報です。共有リポジトリでは、デプロイ専用の Google アカウントでログインしたものを使うと安全です。トークンが失効した場合（パスワード変更など）は、再ログインして登録し直してください。
+
+### 注意
+
+- GAS のバージョンは 1 プロジェクトあたり 200 個までです。`npm run deploy` のたびに 1 つ増えるので、上限が近づいたら GAS エディタの「プロジェクトの履歴」から古いバージョンを削除してください
+- 新しいデプロイを作ると URL が変わります。手動で操作する場合も「デプロイを管理」→ 既存のデプロイを編集 →「新バージョン」で更新してください
+
+### 手動でデプロイする場合
+
+1. <https://script.google.com/> で新しいプロジェクトを作成し、`src/` 内のファイルを同じ名前で作成して貼り付け（`.html` は拡張子なしの名前で「HTML」として作成。`appsscript.json` は「プロジェクトの設定」でエディタに表示させて上書き）
+2. 「デプロイ」→「新しいデプロイ」→ 種類「ウェブアプリ」、実行ユーザー「自分」、アクセス「全員」
+3. 初回は権限を承認する
 
 ## URL 仕様
 
@@ -99,6 +143,7 @@ src/
 ├── EditorScript.html   エディタの JS
 ├── WidgetRenderer.html ウィジェットのレンダラー（素の JS）
 └── WidgetCss.html      ウィジェットの CSS
+scripts/deploy.mjs      デプロイツール（clasp のラッパー）
 dev/                    ローカル用 GAS エミュレータとテスト（デプロイ対象外）
 ```
 
@@ -115,18 +160,14 @@ dev/                    ローカル用 GAS エミュレータとテスト（デ
 
 ## ローカルで動かす（開発用）
 
-GAS の API をモックしたエミュレータで、デプロイせずに動作確認できます。フィードは `dev/fixtures/` のファイルを使います。
-
-```bash
-cd dev && npm install
-```
+GAS の API を真似たエミュレータで、デプロイせずに動作を確認できます。フィードは `dev/fixtures/` のファイルを使います。
 
 ```bash
 npm test
 ```
 
 ```bash
-npm start
+npm run dev
 ```
 
 `http://127.0.0.1:8766/exec` でエディタ、`http://127.0.0.1:8766/host.html` で埋め込みのテストページが開きます。

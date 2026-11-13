@@ -136,3 +136,14 @@ function jsonForScript_(v) {
     .replace(/</g, '\\u003c').replace(/>/g, '\\u003e')
     .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
+
+/**
+ * 初回セットアップ用: GAS エディタからこの関数を 1 回実行して、
+ * 外部 URL の取得（UrlFetchApp）などの権限を承認する。ウェブアプリ自体からは呼ばれない。
+ */
+function authorize() {
+  UrlFetchApp.fetch('https://www.google.com/', { muteHttpExceptions: true });
+  CacheService.getScriptCache().get('authorize');
+  PropertiesService.getScriptProperties().getKeys();
+  Logger.log('権限の承認が完了しました。ウェブアプリの URL を開いて動作を確認してください。');
+}

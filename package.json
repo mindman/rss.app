@@ -1,0 +1,22 @@
+{
+  "name": "rss-widget-maker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RSS/Atom feed to embeddable widgets, running entirely on Google Apps Script",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "setup": "node scripts/deploy.mjs setup",
+    "deploy": "node scripts/deploy.mjs deploy",
+    "status": "node scripts/deploy.mjs status",
+    "open": "node scripts/deploy.mjs open",
+    "login": "clasp login",
+    "test": "node dev/test.js",
+    "dev": "node dev/server.js"
+  },
+  "devDependencies": {
+    "@google/clasp": "3.4.1",
+    "@xmldom/xmldom": "^0.9.0"
+  }
+}

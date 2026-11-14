@@ -11,7 +11,8 @@
     "deploy": "node scripts/deploy.mjs deploy",
     "status": "node scripts/deploy.mjs status",
     "open": "node scripts/deploy.mjs open",
-    "login": "clasp login",
+    "account": "node scripts/deploy.mjs account",
+    "switch-account": "node scripts/deploy.mjs switch-account",
     "test": "node dev/test.js",
     "dev": "node dev/server.js"
   },

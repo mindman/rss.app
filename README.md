@@ -25,7 +25,7 @@ RSS / Atom フィードの URL を入れるだけで、Web サイトに貼れる
 ### 事前準備（最初に 1 回だけ）
 
 - Node.js 20 以上
-- <https://script.google.com/home/usersettings> で **「Google Apps Script API」をオン** にする
+- <https://script.google.com/home/usersettings> で **「Google Apps Script API」をオン** にする（**clasp でログインするのと同じ Google アカウント**で。設定はアカウントごとです）
 
 ```bash
 npm install
@@ -61,6 +61,8 @@ npm run deploy
 | `npm run deploy -- --deployment-id <ID>` | 更新するデプロイを指定（デプロイが複数ある場合） |
 | `npm run status` | スクリプト ID・デプロイ ID・URL・デプロイ一覧を表示 |
 | `npm run open` | GAS エディタを開く |
+| `npm run account` | ログイン中の Google アカウントを表示 |
+| `npm run switch-account` | 別の Google アカウントでログインし直す |
 | `npm test` | ローカルでテスト |
 
 設定は `.clasp.json`（git 管理外）に保存されます。
@@ -68,6 +70,24 @@ npm run deploy
 ```json
 { "scriptId": "...", "rootDir": "src", "deploymentId": "..." }
 ```
+
+### Google アカウントを切り替える
+
+`npm run setup` で意図しないアカウントでログインしてしまった場合は、次を実行します。
+
+```bash
+npm run switch-account
+```
+
+1. 今のアカウントからログアウト
+2. 再ログイン（ブラウザで使いたいアカウントを選ぶ）
+3. 前のアカウントのプロジェクト設定 `.clasp.json` を `.clasp.json.bak` に退避
+
+続けて `npm run setup` を実行すると、新しいアカウントに GAS プロジェクトを作ってデプロイします。前のアカウントにできたプロジェクトが不要なら <https://script.google.com/home> から削除してください。
+
+> ブラウザが自動で前と同じアカウントを選んでしまう場合は、ターミナルに表示される認証 URL をコピーし、シークレットウィンドウか目的のアカウントの Chrome プロフィールで開いてください。URL の末尾に `&prompt=select_account` を付けると、アカウント選択画面を必ず表示できます。
+>
+> 新しいアカウントにも前のプロジェクトの編集権限を共有してあり、同じプロジェクトを使い続けたい場合は `npm run switch-account -- --keep-project` を使います。
 
 ### GitHub Actions で自動デプロイ
 

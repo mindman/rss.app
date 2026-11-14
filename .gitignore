@@ -1,3 +1,4 @@
 .clasp.json
+.clasp.json.bak
 .clasprc.json
 node_modules/

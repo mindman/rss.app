@@ -6,6 +6,8 @@
  *   npm run deploy   src/ を push して、既存のウェブアプリのデプロイを新バージョンに更新（URL は変わらない）
  *   npm run status   設定内容とデプロイ一覧を表示
  *   npm run open     GAS エディタをブラウザで開く
+ *   npm run account  ログイン中の Google アカウントを表示
+ *   npm run switch-account  別の Google アカウントでログインし直す
  *
  * 設定は .clasp.json（git 管理外）に保存する:
  *   { "scriptId": "...", "rootDir": "src", "deploymentId": "..." }
@@ -62,7 +64,17 @@ function clasp(claspArgs, { capture = false, interactive = false, cwd = ROOT, al
   if (r.status !== 0 && !allowFail) {
     let hint;
     if (/Apps Script API|has not been used|is disabled/i.test(out)) {
-      hint = 'Apps Script API が無効です。https://script.google.com/home/usersettings で「Google Apps Script API」をオンにして、数分待ってから再実行してください。';
+      // この設定は Google アカウントごと。ブラウザで別アカウントの設定を変えてしまうことが多いので、
+      // clasp でログイン中のアカウントを明示した URL を案内する
+      const email = currentAccount();
+      const url = 'https://script.google.com/home/usersettings' + (email ? '?authuser=' + encodeURIComponent(email) : '');
+      hint = [
+        'Apps Script API が' + (email ? ` ${email} で` : '') + '無効になっています。',
+        'この設定は Google アカウントごとです。clasp でログインしているアカウントで、次の URL を開いてオンにしてください:',
+        '  ' + url,
+        '（右上のアイコンが ' + (email || 'clasp のアカウント') + ' になっているか確認してください。オンなのに通らない場合は一度オフ→オンに）',
+        'Google Workspace のアカウントで設定画面に項目が無い・変更できない場合は、管理者が Apps Script API を制限している可能性があります。'
+      ].join('\n');
     } else if (/no credentials|login|unauthenticated|invalid_grant|invalid_client/i.test(out)) {
       hint = 'clasp にログインしていません。`npx clasp login` を実行してください（CI の場合は CLASPRC_JSON シークレットを確認）。';
     }
@@ -125,13 +137,39 @@ function listDeployments() {
 
 // ---------------- コマンド ----------------
 
+const LOGIN_TIP = [
+  'ブラウザで使いたい Google アカウントを選んで許可してください。',
+  c.dim('※ アカウント選択画面が出ずに別のアカウントで進んでしまう場合は、下に表示される URL をコピーし、'),
+  c.dim('  シークレットウィンドウ（または目的のアカウントの Chrome プロフィール）で開いてください。'),
+  c.dim('  URL の末尾に &prompt=select_account を付けると、アカウント選択画面を必ず表示できます。')
+].join('\n');
+
+/** ログイン中のアカウントのメールアドレス（取れなければ null） */
+function currentAccount() {
+  const r = clasp(['show-authorized-user', '--json'], { capture: true, allowFail: true });
+  try {
+    return JSON.parse(r.stdout.slice(r.stdout.indexOf('{'))).email || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function login() {
+  console.log(LOGIN_TIP);
+  clasp(['login'], { interactive: true });
+  const email = currentAccount();
+  console.log(c.green('✓ ログインしました: ' + (email || '(メールアドレス不明)')));
+  return email;
+}
+
 function setup() {
   step('1/4 clasp のログイン確認');
   if (!isLoggedIn()) {
-    console.log('ブラウザで Google アカウントを選んで許可してください。');
-    clasp(['login'], { interactive: true });
+    login();
   } else {
-    console.log(c.green('✓ ログイン済み'));
+    const email = currentAccount();
+    console.log(c.green('✓ ログイン済み: ' + (email || '(メールアドレス不明)')));
+    console.log(c.dim('  別のアカウントを使う場合は Ctrl+C で中断して `npm run switch-account` を実行してください。'));
   }
 
   step('2/4 GAS プロジェクト');
@@ -220,6 +258,46 @@ function open() {
   clasp(['open-script'], { interactive: true, allowFail: true });
 }
 
-const commands = { setup, deploy: () => deploy(), status, open };
+function account() {
+  if (!isLoggedIn()) {
+    console.log(c.yellow('ログインしていません。`npm run setup` か `npm run switch-account` を実行してください。'));
+    return;
+  }
+  console.log('ログイン中: ' + c.bold(currentAccount() || '(メールアドレス不明)'));
+}
+
+/**
+ * 別のアカウントでログインし直す。
+ * GAS プロジェクトはアカウントごとに別物なので、既存の .clasp.json は .clasp.json.bak に退避する
+ * （--keep-project を付けると残す。新しいアカウントにも編集権限を共有してある場合など）。
+ */
+function switchAccount() {
+  step('1/3 ログアウト');
+  if (isLoggedIn()) {
+    const before = currentAccount();
+    clasp(['logout']);
+    console.log(c.green('✓ ログアウトしました' + (before ? ': ' + before : '')));
+  } else {
+    console.log('ログインしていません');
+  }
+
+  step('2/3 ログイン');
+  login();
+
+  step('3/3 プロジェクト設定');
+  if (fs.existsSync(CLASP_JSON) && !args.includes('--keep-project')) {
+    const bak = CLASP_JSON + '.bak';
+    fs.renameSync(CLASP_JSON, bak);
+    console.log(c.yellow('前のアカウントのプロジェクト設定を .clasp.json.bak に退避しました。'));
+    console.log('続けて ' + c.bold('npm run setup') + ' を実行すると、このアカウントに新しいプロジェクトを作ってデプロイします。');
+    console.log(c.dim('（前のアカウントに作られた GAS プロジェクトが不要なら、https://script.google.com/home から削除してください）'));
+  } else if (fs.existsSync(CLASP_JSON)) {
+    console.log('既存のプロジェクト設定をそのまま使います。`npm run deploy` で確認してください。');
+  } else {
+    console.log('続けて ' + c.bold('npm run setup') + ' を実行してください。');
+  }
+}
+
+const commands = { setup, deploy: () => deploy(), status, open, account, 'switch-account': switchAccount };
 if (!commands[cmd]) fail('不明なコマンド: ' + cmd, '使えるコマンド: ' + Object.keys(commands).join(', '));
 commands[cmd]();

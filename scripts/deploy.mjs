@@ -64,7 +64,17 @@ function clasp(claspArgs, { capture = false, interactive = false, cwd = ROOT, al
   if (r.status !== 0 && !allowFail) {
     let hint;
     if (/Apps Script API|has not been used|is disabled/i.test(out)) {
-      hint = 'Apps Script API が無効です。https://script.google.com/home/usersettings で「Google Apps Script API」をオンにして、数分待ってから再実行してください。';
+      // この設定は Google アカウントごと。ブラウザで別アカウントの設定を変えてしまうことが多いので、
+      // clasp でログイン中のアカウントを明示した URL を案内する
+      const email = currentAccount();
+      const url = 'https://script.google.com/home/usersettings' + (email ? '?authuser=' + encodeURIComponent(email) : '');
+      hint = [
+        'Apps Script API が' + (email ? ` ${email} で` : '') + '無効になっています。',
+        'この設定は Google アカウントごとです。clasp でログインしているアカウントで、次の URL を開いてオンにしてください:',
+        '  ' + url,
+        '（右上のアイコンが ' + (email || 'clasp のアカウント') + ' になっているか確認してください。オンなのに通らない場合は一度オフ→オンに）',
+        'Google Workspace のアカウントで設定画面に項目が無い・変更できない場合は、管理者が Apps Script API を制限している可能性があります。'
+      ].join('\n');
     } else if (/no credentials|login|unauthenticated|invalid_grant|invalid_client/i.test(out)) {
       hint = 'clasp にログインしていません。`npx clasp login` を実行してください（CI の場合は CLASPRC_JSON シークレットを確認）。';
     }

@@ -25,7 +25,7 @@ RSS / Atom フィードの URL を入れるだけで、Web サイトに貼れる
 ### 事前準備（最初に 1 回だけ）
 
 - Node.js 20 以上
-- <https://script.google.com/home/usersettings> で **「Google Apps Script API」をオン** にする
+- <https://script.google.com/home/usersettings> で **「Google Apps Script API」をオン** にする（**clasp でログインするのと同じ Google アカウント**で。設定はアカウントごとです）
 
 ```bash
 npm install
